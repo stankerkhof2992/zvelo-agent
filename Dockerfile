@@ -30,4 +30,5 @@ ENV ASSETS_PATH=/data/assets
 
 EXPOSE 10000
 
-CMD ["node", "--disable-warning=ExperimentalWarning", "backend/server.js"]
+# --experimental-sqlite is nodig op Node 22 voor de ingebouwde SQLite module
+CMD ["node", "--experimental-sqlite", "--disable-warning=ExperimentalWarning", "backend/server.js"]

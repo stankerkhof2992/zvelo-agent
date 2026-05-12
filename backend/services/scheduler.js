@@ -1,6 +1,6 @@
 require('dotenv').config();
 const cron = require('node-cron');
-const { db, generateId, now, log } = require('../database');
+const { query, queryOne, run, generateId, now, log } = require('../database');
 const claudeService = require('./claude');
 const imageGenService = require('./imageGen');
 const mockupsService = require('./mockups');
@@ -35,18 +35,20 @@ async function runPipeline(options = {}) {
     const today = new Date().toISOString().split('T')[0];
 
     for (const niche of niches) {
-      const existing = db.prepare(
-        'SELECT id FROM niche_analysis WHERE niche = ? AND substr(analyzed_at, 1, 10) = ?'
-      ).get(niche.niche, today);
+      const existing = await queryOne(
+        'SELECT id FROM niche_analysis WHERE niche = $1 AND LEFT(analyzed_at, 10) = $2',
+        [niche.niche, today]
+      );
 
       if (!existing) {
-        db.prepare(
-          'INSERT INTO niche_analysis (id, niche, score, trend, competition, avg_price, recommended, details, analyzed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).run(
-          generateId(), niche.niche, niche.score, niche.trend,
-          niche.competition, niche.avg_price,
-          niche.recommended ? 1 : 0,
-          JSON.stringify(niche.details || {}), now()
+        await run(
+          'INSERT INTO niche_analysis (id, niche, score, trend, competition, avg_price, recommended, details, analyzed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [
+            generateId(), niche.niche, niche.score, niche.trend,
+            niche.competition, niche.avg_price,
+            niche.recommended ? 1 : 0,
+            JSON.stringify(niche.details || {}), now()
+          ]
         );
       }
     }
@@ -59,7 +61,7 @@ async function runPipeline(options = {}) {
       : niches.sort((a, b) => b.score - a.score)[0];
 
     const count = options.count || parseInt(process.env.AGENT_CONCEPTS_PER_DAY || '3');
-    const shops = db.prepare('SELECT * FROM shops').all();
+    const shops = await query('SELECT * FROM shops');
     const defaultShopId = shops.length > 0 ? shops[0].id : null;
 
     for (let i = 0; i < count; i++) {
@@ -74,14 +76,15 @@ async function runPipeline(options = {}) {
         const concept = await claudeService.generateConcept(topNiche.niche);
 
         const conceptId = generateId();
-        db.prepare(
-          'INSERT INTO concepts (id, shop_id, niche, title, description, tags, price, dalle_prompt, why_this_sells, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).run(
-          conceptId, defaultShopId, topNiche.niche,
-          concept.title, concept.description,
-          JSON.stringify(concept.tags),
-          concept.price, concept.dalle_prompt || '',
-          concept.why_this_sells || '', 'pending', now()
+        await run(
+          'INSERT INTO concepts (id, shop_id, niche, title, description, tags, price, dalle_prompt, why_this_sells, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+          [
+            conceptId, defaultShopId, topNiche.niche,
+            concept.title, concept.description,
+            JSON.stringify(concept.tags),
+            concept.price, concept.dalle_prompt || '',
+            concept.why_this_sells || '', 'pending', now()
+          ]
         );
 
         console.log(`[2/6] ✅ "${concept.title}"`);
@@ -91,7 +94,7 @@ async function runPipeline(options = {}) {
         log(`Afbeelding genereren: ${concept.title}`, 'info');
 
         const imageResult = await imageGenService.generateImage(conceptId, concept.title, topNiche.niche);
-        db.prepare('UPDATE concepts SET image_path = ? WHERE id = ?').run(imageResult.path, conceptId);
+        await run('UPDATE concepts SET image_path = $1 WHERE id = $2', [imageResult.path, conceptId]);
         console.log(`[3/6] ✅ Afbeelding: ${imageResult.path}${imageResult.simulated ? ' (placeholder)' : ''}`);
 
         // ── Stap 4: Mockups met Sharp ────────────────────────────────────
@@ -99,7 +102,7 @@ async function runPipeline(options = {}) {
         log(`Mockups aanmaken: ${concept.title}`, 'info');
 
         const mockupPaths = await mockupsService.createMockups(imageResult.path, conceptId, concept.title);
-        db.prepare('UPDATE concepts SET mockup_paths = ? WHERE id = ?').run(JSON.stringify(mockupPaths), conceptId);
+        await run('UPDATE concepts SET mockup_paths = $1 WHERE id = $2', [JSON.stringify(mockupPaths), conceptId]);
         console.log(`[4/6] ✅ ${mockupPaths.length} mockups aangemaakt`);
 
         // ── Stap 5: PDF aanmaken ─────────────────────────────────────────
@@ -114,7 +117,7 @@ async function runPipeline(options = {}) {
         }
 
         // ── Stap 6: Status → ready_for_review ───────────────────────────
-        db.prepare("UPDATE concepts SET status = 'ready_for_review' WHERE id = ?").run(conceptId);
+        await run("UPDATE concepts SET status = 'ready_for_review' WHERE id = $1", [conceptId]);
         log(`Concept klaar voor review: ${concept.title}`, 'success');
         console.log(`[6/6] ✅ "${concept.title}" klaar voor review`);
 

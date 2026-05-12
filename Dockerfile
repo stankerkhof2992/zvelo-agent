@@ -21,15 +21,13 @@ COPY backend/ ./backend/
 # Frontend build van stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Data mappen aanmaken (worden overschreven door Render disk op /data)
+# Asset mappen aanmaken (worden overschreven door Render disk op /data)
 RUN mkdir -p /data/assets/generated /data/assets/mockups /data/assets/products
 
 ENV NODE_ENV=production
 ENV PORT=10000
-ENV DB_PATH=/data/zvelo.db
 ENV ASSETS_PATH=/data/assets
 
 EXPOSE 10000
 
-# --experimental-sqlite is nodig op Node 22 voor de ingebouwde SQLite module
-CMD ["node", "--experimental-sqlite", "--disable-warning=ExperimentalWarning", "backend/server.js"]
+CMD ["node", "backend/server.js"]

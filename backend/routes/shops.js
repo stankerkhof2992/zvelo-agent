@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { db, generateId, now, log } = require('../database');
+const { query, queryOne, run, generateId, now, log } = require('../database');
 const etsyService = require('../services/etsyService');
 
 // GET /api/shops
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const shops = db.prepare('SELECT * FROM shops ORDER BY created_at DESC').all();
+    const shops = await query('SELECT * FROM shops ORDER BY created_at DESC');
     res.json(shops);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -14,20 +14,20 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/shops/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id);
+    const shop = await queryOne('SELECT * FROM shops WHERE id = $1', [req.params.id]);
     if (!shop) return res.status(404).json({ error: 'Shop niet gevonden' });
 
-    const stats = db.prepare(`
+    const stats = await queryOne(`
       SELECT
         COUNT(*) as total_concepts,
         SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) as published,
         SUM(CASE WHEN status='pending' OR status='ready_for_review' THEN 1 ELSE 0 END) as pending,
         COALESCE(SUM(revenue), 0) as total_revenue,
         COALESCE(SUM(views), 0) as total_views
-      FROM concepts WHERE shop_id = ?
-    `).get(req.params.id);
+      FROM concepts WHERE shop_id = $1
+    `, [req.params.id]);
 
     res.json({ ...shop, stats });
   } catch (err) {
@@ -36,44 +36,47 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/shops — Handmatig een shop aanmaken (zonder OAuth)
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { name, niche, etsy_shop_id } = req.body;
     if (!name) return res.status(400).json({ error: 'Shopnaam is verplicht' });
 
     const id = generateId();
-    db.prepare(
-      'INSERT INTO shops (id, name, niche, etsy_shop_id, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, name, niche || 'Minimalist Wall Art Printables', etsy_shop_id || null, now());
+    await run(
+      'INSERT INTO shops (id, name, niche, etsy_shop_id, created_at) VALUES ($1, $2, $3, $4, $5)',
+      [id, name, niche || 'Minimalist Wall Art Printables', etsy_shop_id || null, now()]
+    );
 
     log(`Nieuwe shop aangemaakt: ${name}`, 'info');
-    res.status(201).json(db.prepare('SELECT * FROM shops WHERE id = ?').get(id));
+    const shop = await queryOne('SELECT * FROM shops WHERE id = $1', [id]);
+    res.status(201).json(shop);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // PUT /api/shops/:id
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { name, niche } = req.body;
-    db.prepare(`
+    await run(`
       UPDATE shops SET
-        name = COALESCE(?, name),
-        niche = COALESCE(?, niche)
-      WHERE id = ?
-    `).run(name || null, niche || null, req.params.id);
+        name = COALESCE($1, name),
+        niche = COALESCE($2, niche)
+      WHERE id = $3
+    `, [name || null, niche || null, req.params.id]);
 
-    res.json(db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id));
+    const shop = await queryOne('SELECT * FROM shops WHERE id = $1', [req.params.id]);
+    res.json(shop);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE /api/shops/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM shops WHERE id = ?').run(req.params.id);
+    await run('DELETE FROM shops WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -83,7 +86,7 @@ router.delete('/:id', (req, res) => {
 // GET /api/shops/:id/listings — Live Etsy listings ophalen
 router.get('/:id/listings', async (req, res) => {
   try {
-    const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id);
+    const shop = await queryOne('SELECT * FROM shops WHERE id = $1', [req.params.id]);
     if (!shop) return res.status(404).json({ error: 'Shop niet gevonden' });
 
     const listings = await etsyService.getShopListings(shop);
@@ -96,26 +99,28 @@ router.get('/:id/listings', async (req, res) => {
 // POST /api/shops/:id/sync — Stats synchroniseren vanuit Etsy
 router.post('/:id/sync', async (req, res) => {
   try {
-    const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id);
+    const shop = await queryOne('SELECT * FROM shops WHERE id = $1', [req.params.id]);
     if (!shop) return res.status(404).json({ error: 'Shop niet gevonden' });
 
-    const publishedConcepts = db.prepare(
-      "SELECT * FROM concepts WHERE shop_id = ? AND status = 'published' AND etsy_listing_id IS NOT NULL"
-    ).all(req.params.id);
+    const publishedConcepts = await query(
+      "SELECT * FROM concepts WHERE shop_id = $1 AND status = 'published' AND etsy_listing_id IS NOT NULL",
+      [req.params.id]
+    );
 
     let updated = 0;
     for (const concept of publishedConcepts) {
       const stats = await etsyService.getListingStats(concept.etsy_listing_id, shop);
-      db.prepare('UPDATE concepts SET views=?, revenue=? WHERE id=?').run(stats.views, stats.revenue, concept.id);
+      await run('UPDATE concepts SET views=$1, revenue=$2 WHERE id=$3', [stats.views, stats.revenue, concept.id]);
       updated++;
     }
 
-    const totalRevenue = db.prepare(
-      "SELECT COALESCE(SUM(revenue), 0) as total FROM concepts WHERE shop_id = ?"
-    ).get(req.params.id).total;
-
-    db.prepare('UPDATE shops SET total_revenue=?, listings_count=? WHERE id=?')
-      .run(totalRevenue, publishedConcepts.length, req.params.id);
+    const totalRow = await queryOne(
+      "SELECT COALESCE(SUM(revenue), 0) as total FROM concepts WHERE shop_id = $1",
+      [req.params.id]
+    );
+    await run('UPDATE shops SET total_revenue=$1, listings_count=$2 WHERE id=$3', [
+      Number(totalRow.total), publishedConcepts.length, req.params.id
+    ]);
 
     log(`Stats gesynchroniseerd voor shop: ${shop.name}`, 'success', `${updated} listings bijgewerkt`);
     res.json({ success: true, updated });

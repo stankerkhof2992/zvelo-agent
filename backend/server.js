@@ -36,7 +36,6 @@ const allowedOrigins = [
 if (process.env.RENDER_EXTERNAL_URL) allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
 app.use(cors({
   origin: (origin, callback) => {
-    // Sta requests zonder origin (bv. server-side of Postman) altijd toe
     if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
       callback(null, true);
     } else {
@@ -74,30 +73,40 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Catch-all: React Router (ALTIJD als laatste) ──────────────────────────
-// Stuurt alle niet-API verzoeken naar index.html zodat React routing werkt.
 if (isProduction && fs.existsSync(distPath)) {
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
-app.listen(PORT, () => {
-  const sim = [];
-  if (!process.env.ANTHROPIC_API_KEY) sim.push('Claude');
-  if (!process.env.OPENAI_API_KEY) sim.push('DALL-E');
-  if (!process.env.SMARTMOCKUPS_API_KEY) sim.push('Mockups');
-  if (!process.env.ETSY_CLIENT_ID) sim.push('Etsy');
+// ─── Database initialiseren, daarna server starten ─────────────────────────
+const { initDb } = require('./database');
 
-  console.log(`\n🚀 Zvelo Agent backend: http://localhost:${PORT}`);
-  if (!isProduction) console.log(`📊 Dashboard:          http://localhost:5173`);
-  if (isProduction) console.log(`📊 Dashboard:          http://localhost:${PORT}`);
-  if (sim.length > 0) {
-    console.log(`⚡ Simulatiemodus actief voor: ${sim.join(', ')}`);
-  } else {
-    console.log(`✅ Alle API keys geconfigureerd — live modus`);
-  }
+initDb()
+  .then(() => {
+    console.log('[DB] PostgreSQL tabellen gereed');
+    app.listen(PORT, () => {
+      const sim = [];
+      if (!process.env.ANTHROPIC_API_KEY) sim.push('Claude');
+      if (!process.env.OPENAI_API_KEY) sim.push('DALL-E');
+      if (!process.env.SMARTMOCKUPS_API_KEY) sim.push('Mockups');
+      if (!process.env.ETSY_CLIENT_ID) sim.push('Etsy');
 
-  // Scheduler starten
-  require('./services/scheduler').startScheduler();
-  console.log('');
-});
+      console.log(`\n🚀 Zvelo Agent backend: http://localhost:${PORT}`);
+      if (!isProduction) console.log(`📊 Dashboard:          http://localhost:5173`);
+      if (isProduction) console.log(`📊 Dashboard:          http://localhost:${PORT}`);
+      if (sim.length > 0) {
+        console.log(`⚡ Simulatiemodus actief voor: ${sim.join(', ')}`);
+      } else {
+        console.log(`✅ Alle API keys geconfigureerd — live modus`);
+      }
+
+      // Scheduler starten
+      require('./services/scheduler').startScheduler();
+      console.log('');
+    });
+  })
+  .catch(err => {
+    console.error('[DB] Initialisatie mislukt:', err.message);
+    process.exit(1);
+  });

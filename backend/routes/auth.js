@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
-const { db, generateId, now, log } = require('../database');
+const { queryOne, run, generateId, now, log } = require('../database');
 
 const pendingStates = new Map();
 
@@ -117,21 +117,22 @@ router.get('/etsy/callback', async (req, res) => {
     const etsyShopId = String(etsyShop.shop_id);
     const etsyShopName = etsyShop.shop_name || pending.shopName;
 
-    const existingShop = db.prepare('SELECT * FROM shops WHERE etsy_shop_id = ?').get(etsyShopId);
+    const existingShop = await queryOne('SELECT * FROM shops WHERE etsy_shop_id = $1', [etsyShopId]);
 
     if (existingShop) {
-      db.prepare(`
+      await run(`
         UPDATE shops SET
-          name = ?,
-          etsy_access_token = ?,
-          etsy_refresh_token = ?,
-          etsy_token_expires_at = ?
-        WHERE etsy_shop_id = ?
-      `).run(etsyShopName, access_token, refresh_token, expiresAt, etsyShopId);
+          name = $1,
+          etsy_access_token = $2,
+          etsy_refresh_token = $3,
+          etsy_token_expires_at = $4
+        WHERE etsy_shop_id = $5
+      `, [etsyShopName, access_token, refresh_token, expiresAt, etsyShopId]);
     } else {
-      db.prepare(
-        'INSERT INTO shops (id, etsy_shop_id, name, etsy_access_token, etsy_refresh_token, etsy_token_expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(generateId(), etsyShopId, etsyShopName, access_token, refresh_token, expiresAt, now());
+      await run(
+        'INSERT INTO shops (id, etsy_shop_id, name, etsy_access_token, etsy_refresh_token, etsy_token_expires_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [generateId(), etsyShopId, etsyShopName, access_token, refresh_token, expiresAt, now()]
+      );
     }
 
     log(`Etsy OAuth voltooid voor shop: ${etsyShopName}`, 'success');

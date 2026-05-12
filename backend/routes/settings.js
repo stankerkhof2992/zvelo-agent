@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { getSetting, setSetting } = require('../database');
 
 const ENV_PATH = path.join(__dirname, '..', '.env');
 
@@ -107,12 +106,12 @@ router.put('/', (req, res) => {
 });
 
 // GET /api/settings/export — Exporteer alle data als JSON
-router.get('/export', (req, res) => {
+router.get('/export', async (req, res) => {
   try {
-    const { db } = require('../database');
-    const concepts = db.prepare('SELECT * FROM concepts').all();
-    const shops = db.prepare('SELECT id, name, niche, listings_count, total_revenue, created_at FROM shops').all();
-    const niches = db.prepare('SELECT * FROM niche_analysis ORDER BY analyzed_at DESC').all();
+    const { query } = require('../database');
+    const concepts = await query('SELECT * FROM concepts');
+    const shops = await query('SELECT id, name, niche, listings_count, total_revenue, created_at FROM shops');
+    const niches = await query('SELECT * FROM niche_analysis ORDER BY analyzed_at DESC');
 
     res.setHeader('Content-Disposition', 'attachment; filename="zvelo-export.json"');
     res.setHeader('Content-Type', 'application/json');

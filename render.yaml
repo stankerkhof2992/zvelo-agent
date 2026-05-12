@@ -1,3 +1,9 @@
+databases:
+  - name: zvelo-db
+    databaseName: zvelo
+    user: zvelo
+    plan: free
+
 services:
   - type: web
     name: zvelo-agent
@@ -10,8 +16,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: DB_PATH
-        value: /data/zvelo.db
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zvelo-db
+          property: connectionString
       - key: ASSETS_PATH
         value: /data/assets
       - key: ETSY_REDIRECT_URI

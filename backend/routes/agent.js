@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db, log } = require('../database');
+const { query, queryOne, log } = require('../database');
 const scheduler = require('../services/scheduler');
 const claudeService = require('../services/claude');
 
@@ -41,17 +41,18 @@ router.get('/status', (req, res) => {
 });
 
 // GET /api/agent/logs
-router.get('/logs', (req, res) => {
+router.get('/logs', async (req, res) => {
   try {
     const { limit = 100, status } = req.query;
-    let query = 'SELECT * FROM agent_logs';
+    let sql = 'SELECT * FROM agent_logs';
     const params = [];
+    let n = 0;
 
-    if (status) { query += ' WHERE status = ?'; params.push(status); }
-    query += ' ORDER BY timestamp DESC LIMIT ?';
+    if (status) { sql += ` WHERE status = $${++n}`; params.push(status); }
+    sql += ` ORDER BY timestamp DESC LIMIT $${++n}`;
     params.push(parseInt(limit));
 
-    const logs = db.prepare(query).all(...params);
+    const logs = await query(sql, params);
     res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -59,18 +60,13 @@ router.get('/logs', (req, res) => {
 });
 
 // GET /api/agent/niche-analysis
-router.get('/niche-analysis', (req, res) => {
+router.get('/niche-analysis', async (req, res) => {
   try {
-    // Laatste analyse per niche
-    const niches = db.prepare(`
-      SELECT * FROM niche_analysis
-      WHERE id IN (
-        SELECT id FROM niche_analysis n2
-        WHERE n2.niche = niche_analysis.niche
-        ORDER BY analyzed_at DESC LIMIT 1
-      )
-      ORDER BY score DESC
-    `).all();
+    const niches = await query(`
+      SELECT * FROM (
+        SELECT DISTINCT ON (niche) * FROM niche_analysis ORDER BY niche, analyzed_at DESC
+      ) t ORDER BY score DESC
+    `);
 
     const parsed = niches.map(n => ({
       ...n,
@@ -85,25 +81,27 @@ router.get('/niche-analysis', (req, res) => {
 });
 
 // GET /api/agent/costs
-router.get('/costs', (req, res) => {
+router.get('/costs', async (req, res) => {
   try {
-    const totalCents = db.prepare('SELECT COALESCE(SUM(cost_cents), 0) as total FROM agent_logs').get().total;
-    const byAction = db.prepare(`
+    const totalRow = await queryOne('SELECT COALESCE(SUM(cost_cents), 0) as total FROM agent_logs');
+    const byAction = await query(`
       SELECT action, SUM(cost_cents) as total_cents, COUNT(*) as count
       FROM agent_logs
       WHERE cost_cents > 0
       GROUP BY action
       ORDER BY total_cents DESC
-    `).all();
+    `);
 
-    const dailyCosts = db.prepare(`
-      SELECT date(timestamp) as date, SUM(cost_cents) as total_cents
+    const dailyCosts = await query(`
+      SELECT LEFT(timestamp, 10) as date, SUM(cost_cents) as total_cents
       FROM agent_logs
       WHERE cost_cents > 0
-      GROUP BY date(timestamp)
+      GROUP BY LEFT(timestamp, 10)
       ORDER BY date DESC
       LIMIT 30
-    `).all();
+    `);
+
+    const totalCents = Number(totalRow.total);
 
     res.json({
       total_cents: totalCents,
@@ -141,35 +139,34 @@ router.get('/niches', (req, res) => {
 // GET /api/reports/weekly
 router.get('/reports/weekly', async (req, res) => {
   try {
-    const { week } = req.query;
-
     const since28 = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const weeklyRevenue = db.prepare(`
-      SELECT substr(published_at, 1, 10) as date, SUM(revenue) as revenue, COUNT(*) as listings
+    const weeklyRevenue = await query(`
+      SELECT LEFT(published_at, 10) as date, SUM(revenue) as revenue, COUNT(*) as listings
       FROM concepts
       WHERE status = 'published'
-        AND published_at >= ?
-      GROUP BY substr(published_at, 1, 10)
+        AND published_at >= $1
+      GROUP BY LEFT(published_at, 10)
       ORDER BY date ASC
-    `).all(since28);
+    `, [since28]);
 
-    const topListings = db.prepare(`
+    const topListings = await query(`
       SELECT id, title, views, revenue, published_at, etsy_listing_id
       FROM concepts
       WHERE status = 'published'
       ORDER BY views DESC
       LIMIT 10
-    `).all();
+    `);
+
+    const viewsRow = await queryOne("SELECT COALESCE(SUM(views), 0) as v FROM concepts WHERE status='published'");
 
     const salesData = {
-      total_revenue: weeklyRevenue.reduce((s, r) => s + (r.revenue || 0), 0),
-      total_views: db.prepare("SELECT COALESCE(SUM(views),0) as v FROM concepts WHERE status='published'").get().v,
+      total_revenue: weeklyRevenue.reduce((s, r) => s + Number(r.revenue || 0), 0),
+      total_views: Number(viewsRow.v),
       top_listings: topListings,
       weekly_revenue: weeklyRevenue
     };
 
     const recommendations = await claudeService.generateWeeklyRecommendations(salesData);
-
     res.json({ ...salesData, recommendations });
   } catch (err) {
     res.status(500).json({ error: err.message });

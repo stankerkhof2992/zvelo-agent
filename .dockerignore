@@ -1,0 +1,12 @@
+node_modules
+backend/node_modules
+frontend/node_modules
+frontend/dist
+backend/.env
+backend/zvelo.db
+backend/zvelo.db-shm
+backend/zvelo.db-wal
+assets/
+.git
+.gitignore
+*.md

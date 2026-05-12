@@ -1,12 +1,10 @@
 services:
   - type: web
     name: zvelo-agent
-    env: node
+    env: docker
     region: frankfurt
     plan: free
-    buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
-    startCommand: node --disable-warning=ExperimentalWarning backend/server.js
-    healthCheckPath: /api/health
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production

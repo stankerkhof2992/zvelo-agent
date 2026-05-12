@@ -76,7 +76,7 @@ export default function Settings() {
         if (value && value.trim() !== '') toSave[key] = value.trim()
       }
       await saveSettings(toSave)
-      setSuccess('Instellingen opgeslagen! Herstart de backend server als je API keys hebt gewijzigd.')
+      setSuccess('Instellingen opgeslagen en direct actief — maar verdwijnen bij de volgende Render deploy. Zet permanente keys in het Render Dashboard onder Environment Variables.')
       const refreshed = await getSettings()
       setSettings(refreshed)
     } catch (e) {
@@ -91,6 +91,7 @@ export default function Settings() {
   }
 
   const sim = settings?.simulation_mode || {}
+  const isOnRender = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
 
   return (
     <div className="p-8 max-w-3xl">
@@ -102,9 +103,45 @@ export default function Settings() {
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>}
       {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{success}</div>}
 
+      {/* Render.com instructies — altijd zichtbaar want dat is de deployment */}
+      <div className="card p-5 mb-6 border-2 border-blue-200 bg-blue-50">
+        <h2 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+          <span>☁️</span> API Keys instellen via Render Dashboard
+        </h2>
+        <p className="text-sm text-blue-800 mb-4">
+          Op Render.com worden API keys ingesteld als <strong>Environment Variables</strong> — niet via dit formulier.
+          Keys ingevoerd hieronder zijn alleen geldig tot de volgende herstart.
+        </p>
+        <ol className="text-sm text-blue-800 space-y-2 mb-4">
+          <li className="flex gap-2"><span className="font-bold shrink-0">1.</span><span>Ga naar <strong>dashboard.render.com</strong> → jouw service <code className="bg-blue-100 px-1 rounded">zvelo-agent</code></span></li>
+          <li className="flex gap-2"><span className="font-bold shrink-0">2.</span><span>Klik op <strong>Environment</strong> in het linkermenu</span></li>
+          <li className="flex gap-2"><span className="font-bold shrink-0">3.</span><span>Klik op <strong>Add Environment Variable</strong></span></li>
+          <li className="flex gap-2"><span className="font-bold shrink-0">4.</span><span>Voeg toe: <code className="bg-blue-100 px-1 rounded">ANTHROPIC_API_KEY</code> = jouw Claude key</span></li>
+          <li className="flex gap-2"><span className="font-bold shrink-0">5.</span><span>Klik <strong>Save Changes</strong> — Render herstart automatisch met de nieuwe key</span></li>
+        </ol>
+        <div className="bg-white rounded-lg p-3 border border-blue-200">
+          <p className="text-xs font-semibold text-blue-700 mb-2">Variabelenamen om toe te voegen:</p>
+          <div className="grid grid-cols-1 gap-1 font-mono text-xs text-blue-900">
+            {[
+              ['ANTHROPIC_API_KEY', 'sk-ant-api03-...', 'Claude AI (tekst genereren)'],
+              ['ETSY_CLIENT_ID', 'xxxxxx...', 'Etsy publiceren'],
+              ['ETSY_CLIENT_SECRET', '••••••', 'Etsy publiceren'],
+              ['ETSY_REDIRECT_URI', 'https://zvelo-agent.onrender.com/auth/etsy/callback', 'Etsy OAuth'],
+            ].map(([name, example, desc]) => (
+              <div key={name} className="flex items-start gap-2 py-0.5">
+                <span className="text-blue-600 shrink-0 w-52">{name}</span>
+                <span className="text-zinc-400 shrink-0">=</span>
+                <span className="text-zinc-500 truncate">{example}</span>
+                <span className="text-zinc-400 text-xs ml-auto shrink-0 hidden sm:block">← {desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Simulatiemodus overzicht */}
       <div className="card p-5 mb-6">
-        <h2 className="font-semibold text-zinc-800 mb-3">⚡ Simulatiemodus</h2>
+        <h2 className="font-semibold text-zinc-800 mb-3">⚡ Simulatiemodus status</h2>
         <div className="grid grid-cols-2 gap-3 text-sm">
           {[
             { label: 'Claude (tekst)', key: 'claude' },
@@ -121,12 +158,21 @@ export default function Settings() {
             </div>
           ))}
         </div>
-        <p className="text-xs text-zinc-400 mt-3">Vul API keys in hieronder om de simulatiemodus uit te schakelen. Herstart de server na het opslaan.</p>
+        <p className="text-xs text-zinc-400 mt-3">
+          Status wordt live opgehaald uit de server. Groen = key is geladen vanuit Render Environment Variables.
+        </p>
       </div>
 
-      {/* API Keys */}
+      {/* API Keys — tijdelijk (tot herstart) */}
       <div className="card p-5 mb-6">
-        <h2 className="font-semibold text-zinc-800 mb-4">🔑 API Keys</h2>
+        <div className="flex items-start justify-between mb-4">
+          <h2 className="font-semibold text-zinc-800">🔑 API Keys (tijdelijk)</h2>
+          <span className="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full font-medium">Geldig tot herstart</span>
+        </div>
+        <p className="text-xs text-zinc-500 mb-4">
+          Keys die je hier invult worden direct actief maar gaan verloren bij de volgende Render deploy.
+          Gebruik het blauwe blok hierboven voor permanente keys.
+        </p>
         <div className="space-y-4">
           {[
             {
@@ -134,18 +180,6 @@ export default function Settings() {
               placeholder: 'sk-ant-api03-...',
               link: 'https://console.anthropic.com/settings/keys',
               configuredKey: 'ANTHROPIC_API_KEY'
-            },
-            {
-              key: 'OPENAI_API_KEY', label: 'OpenAI API Key (DALL-E)',
-              placeholder: 'sk-proj-...',
-              link: 'https://platform.openai.com/api-keys',
-              configuredKey: 'OPENAI_API_KEY'
-            },
-            {
-              key: 'SMARTMOCKUPS_API_KEY', label: 'Smartmockups API Key',
-              placeholder: 'sm_...',
-              link: 'https://smartmockups.com/api',
-              configuredKey: 'SMARTMOCKUPS_API_KEY'
             },
             {
               key: 'ETSY_CLIENT_ID', label: 'Etsy Client ID',
@@ -271,8 +305,8 @@ export default function Settings() {
         </button>
       </div>
 
-      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-700">
-        ⚠️ Na het opslaan van API keys: herstart de backend server (<code>node server.js</code>) zodat de nieuwe keys worden geladen.
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+        💡 <strong>Permanente keys:</strong> Render Dashboard → jouw service → Environment → Add Environment Variable → Save Changes
       </div>
     </div>
   )

@@ -68,8 +68,8 @@ export default function Agent() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-zinc-900">Agent Control</h1>
         <p className="text-zinc-500 mt-1">Niche analyse, activiteiten en handmatige besturing</p>
       </div>
@@ -130,7 +130,7 @@ export default function Agent() {
                 />
               </div>
               <button
-                className="btn-primary w-full justify-center"
+                className="btn-primary w-full"
                 onClick={handleRun}
                 disabled={running}
               >
@@ -152,7 +152,7 @@ export default function Agent() {
                   {costs.by_action.map(row => (
                     <div key={row.action} className="flex justify-between text-xs">
                       <span className="text-zinc-500 truncate">{row.action}</span>
-                      <span className="font-medium text-zinc-700">€{(row.total_cents / 100).toFixed(2)} ({row.count}×)</span>
+                      <span className="font-medium text-zinc-700 shrink-0 ml-2">€{(row.total_cents / 100).toFixed(2)} ({row.count}×)</span>
                     </div>
                   ))}
                 </div>
@@ -203,7 +203,7 @@ export default function Agent() {
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-zinc-800">📋 Activiteiten log</h2>
-            <button className="text-xs text-zinc-400 hover:text-zinc-600" onClick={load}>↻ Verversen</button>
+            <button className="text-xs text-zinc-400 hover:text-zinc-600 min-h-[36px] px-2" onClick={load}>↻ Verversen</button>
           </div>
           {loading ? (
             <div className="text-center py-12 text-zinc-400">Laden...</div>

@@ -23,7 +23,7 @@ function GeneratingBanner({ logs }) {
   })()
 
   return (
-    <div className="mb-6 card p-5 border-orange-200 bg-orange-50">
+    <div className="mb-6 card p-4 sm:p-5 border-orange-200 bg-orange-50">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin shrink-0" />
         <div>
@@ -67,7 +67,6 @@ export default function Today() {
       setConcepts(data)
       setAgentStatus(status)
 
-      // Laad recente logs als agent actief is
       if (status?.running) {
         const { getAgentLogs } = await import('../api')
         const logs = await getAgentLogs(10)
@@ -75,7 +74,6 @@ export default function Today() {
       } else {
         setAgentLogs([])
         setGenerating(false)
-        // Toon pipeline-fout als die beschikbaar is
         if (status?.lastError) {
           setError(`Agent fout: ${status.lastError}`)
         }
@@ -87,7 +85,6 @@ export default function Today() {
     }
   }
 
-  // Polling: elke 5s wanneer agent actief is of er pending concepten zijn
   useEffect(() => {
     load()
     pollRef.current = setInterval(() => {
@@ -99,7 +96,6 @@ export default function Today() {
     return () => clearInterval(pollRef.current)
   }, [])
 
-  // Herstart polling wanneer status verandert
   useEffect(() => {
     clearInterval(pollRef.current)
     const interval = agentStatus?.running || generating ? 5000 : 15000
@@ -125,9 +121,9 @@ export default function Today() {
   const isActive = agentStatus?.running || generating
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 md:mb-8">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Vandaag</h1>
           <p className="text-zinc-500 mt-1 capitalize">{today}</p>
@@ -136,7 +132,7 @@ export default function Today() {
           )}
         </div>
         <button
-          className="btn-primary"
+          className="btn-primary w-full sm:w-auto"
           onClick={handleQuickGenerate}
           disabled={isActive}
         >
@@ -148,21 +144,20 @@ export default function Today() {
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       )}
 
-      {/* Genereer-banner met pipeline stappen */}
       {isActive && <GeneratingBanner logs={agentLogs} />}
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      {/* Stats — 2 kolommen op mobiel, 3 op desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 mb-6 md:mb-8">
         {[
           { label: 'Klaar voor review', count: ready.length, color: 'text-blue-600', bg: 'bg-blue-50', icon: '📋' },
           { label: 'In behandeling', count: pending.length, color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '⏳' },
           { label: 'Goedgekeurd', count: approved.length, color: 'text-green-600', bg: 'bg-green-50', icon: '✅' },
-        ].map(s => (
-          <div key={s.label} className={`card p-4 flex items-center gap-4 ${s.bg}`}>
-            <span className="text-2xl">{s.icon}</span>
+        ].map((s, i) => (
+          <div key={s.label} className={`card p-3 sm:p-4 flex items-center gap-2 sm:gap-4 ${s.bg} ${i === 2 ? 'col-span-2 sm:col-span-1' : ''}`}>
+            <span className="text-xl sm:text-2xl">{s.icon}</span>
             <div>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
-              <p className="text-xs text-zinc-500">{s.label}</p>
+              <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.count}</p>
+              <p className="text-xs text-zinc-500 leading-tight">{s.label}</p>
             </div>
           </div>
         ))}
@@ -177,7 +172,6 @@ export default function Today() {
         </div>
       )}
 
-      {/* Klaar voor review */}
       {ready.length > 0 && (
         <section className="mb-8">
           <h2 className="text-base font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -192,7 +186,6 @@ export default function Today() {
         </section>
       )}
 
-      {/* Goedgekeurd — publiceren */}
       {approved.length > 0 && (
         <section className="mb-8">
           <h2 className="text-base font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -207,7 +200,6 @@ export default function Today() {
         </section>
       )}
 
-      {/* In behandeling (skeleton cards) */}
       {pending.length > 0 && (
         <section className="mb-8">
           <h2 className="text-base font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -223,12 +215,12 @@ export default function Today() {
       )}
 
       {!loading && concepts.length === 0 && !isActive && (
-        <div className="text-center py-20 text-zinc-400">
+        <div className="text-center py-16 text-zinc-400">
           <div className="text-6xl mb-4">🤖</div>
           <h3 className="text-lg font-medium text-zinc-600 mb-2">Nog geen concepten vandaag</h3>
           <p className="text-sm mb-2">De agent genereert productafbeeldingen via Pollinations.ai (gratis)</p>
           <p className="text-xs text-zinc-400 mb-6">mockups via Sharp · PDF via pdfkit · publicatie via Etsy API</p>
-          <button className="btn-primary" onClick={handleQuickGenerate} disabled={isActive}>
+          <button className="btn-primary w-full sm:w-auto" onClick={handleQuickGenerate} disabled={isActive}>
             🚀 Agent starten
           </button>
         </div>

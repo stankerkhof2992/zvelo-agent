@@ -69,7 +69,7 @@ export default function Queue() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-900">Wachtrij</h1>
         <p className="text-zinc-500 mt-1">{concepts.length} concepten totaal</p>
@@ -79,25 +79,27 @@ export default function Queue() {
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="flex gap-1 bg-white border border-zinc-200 rounded-lg p-1">
-          {STATUSES.map(s => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                filter === s ? 'bg-orange-500 text-white' : 'text-zinc-500 hover:bg-zinc-50'
-              }`}
-            >
-              {STATUS_LABELS[s]}
-            </button>
-          ))}
+      {/* Filters — horizontaal scrollbaar op mobiel */}
+      <div className="mb-6 space-y-3">
+        <div className="scroll-x pb-1">
+          <div className="flex gap-1 bg-white border border-zinc-200 rounded-lg p-1 w-max min-w-full">
+            {STATUSES.map(s => (
+              <button
+                key={s}
+                onClick={() => setFilter(s)}
+                className={`px-3 py-2 rounded-md text-xs font-medium transition-all whitespace-nowrap min-h-[36px] ${
+                  filter === s ? 'bg-orange-500 text-white' : 'text-zinc-500 hover:bg-zinc-50'
+                }`}
+              >
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
         </div>
 
         {niches.length > 1 && (
           <select
-            className="input w-auto text-sm"
+            className="input w-full sm:w-auto sm:max-w-xs"
             value={nicheFilter}
             onChange={e => setNicheFilter(e.target.value)}
           >
@@ -110,85 +112,87 @@ export default function Queue() {
 
       {/* Bulk acties */}
       {selected.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-blue-800">{selected.length} geselecteerd</span>
           <button className="btn-success text-xs" onClick={() => handleBulk('approve')} disabled={!!bulkLoading}>
-            {bulkLoading === 'approve' ? '⏳...' : '✅ Alles goedkeuren'}
+            {bulkLoading === 'approve' ? '⏳...' : '✅ Goedkeuren'}
           </button>
           <button className="btn-danger text-xs" onClick={() => handleBulk('reject')} disabled={!!bulkLoading}>
-            {bulkLoading === 'reject' ? '⏳...' : '✕ Alles afwijzen'}
+            {bulkLoading === 'reject' ? '⏳...' : '✕ Afwijzen'}
           </button>
-          <button className="btn-secondary text-xs ml-auto" onClick={() => setSelected([])}>
+          <button className="btn-secondary text-xs sm:ml-auto" onClick={() => setSelected([])}>
             Deselecteren
           </button>
         </div>
       )}
 
-      {/* Tabel */}
+      {/* Tabel — horizontaal scrollbaar op mobiel */}
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 border-b border-zinc-100">
-            <tr>
-              <th className="p-3 text-left">
-                <input type="checkbox" onChange={toggleAll} checked={selected.length === filtered.length && filtered.length > 0} className="rounded" />
-              </th>
-              <th className="p-3 text-left font-medium text-zinc-600">Titel</th>
-              <th className="p-3 text-left font-medium text-zinc-600 hidden md:table-cell">Niche</th>
-              <th className="p-3 text-left font-medium text-zinc-600">Status</th>
-              <th className="p-3 text-right font-medium text-zinc-600">Prijs</th>
-              <th className="p-3 text-left font-medium text-zinc-600 hidden lg:table-cell">Aangemaakt</th>
-              <th className="p-3 text-left font-medium text-zinc-600">Acties</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-50">
-            {loading ? (
-              <tr><td colSpan={7} className="p-8 text-center text-zinc-400">Laden...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="p-8 text-center text-zinc-400">Geen concepten gevonden</td></tr>
-            ) : filtered.map(c => (
-              <tr key={c.id} className={`hover:bg-zinc-50 transition-colors ${selected.includes(c.id) ? 'bg-blue-50/50' : ''}`}>
-                <td className="p-3">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(c.id)}
-                    onChange={() => toggleSelect(c.id)}
-                    className="rounded"
-                  />
-                </td>
-                <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    {c.image_path && (
-                      <img src={c.image_path} alt="" className="w-8 h-8 rounded object-cover bg-zinc-100 shrink-0" />
-                    )}
-                    <span className="font-medium text-zinc-800 line-clamp-1 max-w-xs">{c.title || 'Zonder titel'}</span>
-                  </div>
-                </td>
-                <td className="p-3 hidden md:table-cell">
-                  <span className="text-xs text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">{c.niche}</span>
-                </td>
-                <td className="p-3"><StatusBadge status={c.status} /></td>
-                <td className="p-3 text-right font-semibold text-zinc-800">€{Number(c.price || 0).toFixed(2)}</td>
-                <td className="p-3 hidden lg:table-cell text-zinc-400 text-xs">{formatDate(c.created_at)}</td>
-                <td className="p-3">
-                  <div className="flex gap-1">
-                    {(c.status === 'pending' || c.status === 'ready_for_review') && (
-                      <>
-                        <button className="btn-success text-xs px-2 py-1" onClick={async () => { await approveConcept(c.id); load() }}>✅</button>
-                        <button className="btn-danger text-xs px-2 py-1" onClick={async () => { await rejectConcept(c.id); load() }}>✕</button>
-                      </>
-                    )}
-                    {c.status === 'approved' && (
-                      <button className="btn-primary text-xs px-2 py-1" onClick={() => handlePublish(c.id)}>🚀</button>
-                    )}
-                    {c.status === 'published' && c.etsy_listing_id && (
-                      <a href={`https://www.etsy.com/listing/${c.etsy_listing_id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs px-2 py-1">🔗</a>
-                    )}
-                  </div>
-                </td>
+        <div className="scroll-x">
+          <table className="w-full text-sm" style={{ minWidth: '580px' }}>
+            <thead className="bg-zinc-50 border-b border-zinc-100">
+              <tr>
+                <th className="p-3 text-left">
+                  <input type="checkbox" onChange={toggleAll} checked={selected.length === filtered.length && filtered.length > 0} className="rounded" />
+                </th>
+                <th className="p-3 text-left font-medium text-zinc-600">Titel</th>
+                <th className="p-3 text-left font-medium text-zinc-600 hidden md:table-cell">Niche</th>
+                <th className="p-3 text-left font-medium text-zinc-600">Status</th>
+                <th className="p-3 text-right font-medium text-zinc-600">Prijs</th>
+                <th className="p-3 text-left font-medium text-zinc-600 hidden lg:table-cell">Aangemaakt</th>
+                <th className="p-3 text-left font-medium text-zinc-600">Acties</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {loading ? (
+                <tr><td colSpan={7} className="p-8 text-center text-zinc-400">Laden...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={7} className="p-8 text-center text-zinc-400">Geen concepten gevonden</td></tr>
+              ) : filtered.map(c => (
+                <tr key={c.id} className={`hover:bg-zinc-50 transition-colors ${selected.includes(c.id) ? 'bg-blue-50/50' : ''}`}>
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      {c.image_path && (
+                        <img src={c.image_path} alt="" className="w-8 h-8 rounded object-cover bg-zinc-100 shrink-0" />
+                      )}
+                      <span className="font-medium text-zinc-800 line-clamp-1 max-w-[180px] sm:max-w-xs">{c.title || 'Zonder titel'}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 hidden md:table-cell">
+                    <span className="text-xs text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">{c.niche}</span>
+                  </td>
+                  <td className="p-3"><StatusBadge status={c.status} /></td>
+                  <td className="p-3 text-right font-semibold text-zinc-800">€{Number(c.price || 0).toFixed(2)}</td>
+                  <td className="p-3 hidden lg:table-cell text-zinc-400 text-xs">{formatDate(c.created_at)}</td>
+                  <td className="p-3">
+                    <div className="flex gap-1">
+                      {(c.status === 'pending' || c.status === 'ready_for_review') && (
+                        <>
+                          <button className="btn-success text-xs px-2 py-1 min-h-[36px]" onClick={async () => { await approveConcept(c.id); load() }}>✅</button>
+                          <button className="btn-danger text-xs px-2 py-1 min-h-[36px]" onClick={async () => { await rejectConcept(c.id); load() }}>✕</button>
+                        </>
+                      )}
+                      {c.status === 'approved' && (
+                        <button className="btn-primary text-xs px-2 py-1 min-h-[36px]" onClick={() => handlePublish(c.id)}>🚀</button>
+                      )}
+                      {c.status === 'published' && c.etsy_listing_id && (
+                        <a href={`https://www.etsy.com/listing/${c.etsy_listing_id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs px-2 py-1 min-h-[36px]">🔗</a>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

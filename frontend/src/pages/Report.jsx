@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getWeeklyReport } from '../api'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 function formatDate(str) {
   if (!str) return ''
@@ -22,7 +22,7 @@ export default function Report() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center h-96 text-zinc-400">
+      <div className="p-4 md:p-8 flex items-center justify-center h-96 text-zinc-400">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p>Rapport genereren...</p>
@@ -32,7 +32,7 @@ export default function Report() {
   }
 
   if (error) {
-    return <div className="p-8"><div className="card p-5 bg-red-50 text-red-700">{error}</div></div>
+    return <div className="p-4 md:p-8"><div className="card p-5 bg-red-50 text-red-700">{error}</div></div>
   }
 
   const chartData = (report?.weekly_revenue || []).map(r => ({
@@ -45,25 +45,25 @@ export default function Report() {
   const recs = report?.recommendations
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-zinc-900">Wekelijks Rapport</h1>
         <p className="text-zinc-500 mt-1">Prestaties en AI-aanbevelingen</p>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      {/* KPI cards — 2 kolommen op mobiel, 3 op sm+ */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 md:mb-8">
         {[
           { label: 'Totale omzet', value: `€${Number(report?.total_revenue || 0).toFixed(2)}`, icon: '💰', color: 'text-orange-600' },
           { label: 'Totale views', value: (report?.total_views || 0).toLocaleString('nl-NL'), icon: '👁️', color: 'text-blue-600' },
-          { label: 'Gepubliceerde listings', value: (report?.top_listings || []).length, icon: '🚀', color: 'text-green-600' }
-        ].map(s => (
-          <div key={s.label} className="card p-5">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="text-3xl">{s.icon}</span>
-              <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+          { label: 'Live listings', value: (report?.top_listings || []).length, icon: '🚀', color: 'text-green-600' }
+        ].map((s, i) => (
+          <div key={s.label} className={`card p-4 sm:p-5 ${i === 2 ? 'col-span-2 sm:col-span-1' : ''}`}>
+            <div className="flex items-center gap-2 sm:gap-3 mb-1">
+              <span className="text-2xl sm:text-3xl">{s.icon}</span>
+              <p className={`text-xl sm:text-3xl font-bold ${s.color}`}>{s.value}</p>
             </div>
-            <p className="text-sm text-zinc-500">{s.label}</p>
+            <p className="text-xs sm:text-sm text-zinc-500">{s.label}</p>
           </div>
         ))}
       </div>
@@ -100,7 +100,7 @@ export default function Report() {
             <div className="space-y-3">
               {topListings.map((listing, i) => (
                 <div key={listing.id} className="flex items-center gap-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                     i === 0 ? 'bg-yellow-100 text-yellow-700' :
                     i === 1 ? 'bg-zinc-100 text-zinc-600' :
                     i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-zinc-50 text-zinc-400'
@@ -120,13 +120,13 @@ export default function Report() {
 
       {/* AI aanbevelingen */}
       {recs && (
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <h2 className="font-semibold text-zinc-800 mb-5 flex items-center gap-2">
             🤖 AI Aanbevelingen
-            <span className="text-xs text-zinc-400 font-normal">— gegenereerd door Claude</span>
+            <span className="text-xs text-zinc-400 font-normal hidden sm:inline">— gegenereerd door Claude</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
             {recs.top_niche && (
               <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
                 <p className="text-xs font-medium text-orange-600 mb-1">⭐ Beste niche</p>

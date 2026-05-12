@@ -75,6 +75,10 @@ export default function Today() {
       } else {
         setAgentLogs([])
         setGenerating(false)
+        // Toon pipeline-fout als die beschikbaar is
+        if (status?.lastError) {
+          setError(`Agent fout: ${status.lastError}`)
+        }
       }
     } catch (e) {
       setError(typeof e === 'string' ? e : 'Laden mislukt')

@@ -32,8 +32,11 @@ router.post('/run', async (req, res) => {
 router.get('/status', (req, res) => {
   res.json({
     running: scheduler.isRunning(),
-    simulation: claudeService.isSimulation,
-    schedule: process.env.AGENT_CRON_SCHEDULE || '0 8 * * *'
+    simulation: !process.env.ANTHROPIC_API_KEY,
+    schedule: process.env.AGENT_CRON_SCHEDULE || '0 8 * * *',
+    lastError: scheduler.getLastError ? scheduler.getLastError() : null,
+    lastRunTime: scheduler.getLastRunTime ? scheduler.getLastRunTime() : null,
+    lastResult: scheduler.getLastResult ? scheduler.getLastResult() : null
   });
 });
 

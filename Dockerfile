@@ -2,7 +2,7 @@
 FROM node:22-bookworm-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
@@ -11,8 +11,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 # Backend dependencies (alleen productie)
+# npm install ipv npm ci: pakt altijd de correcte platform-binaries (bv. Sharp Linux vs Windows)
 COPY backend/package*.json ./backend/
-RUN cd backend && npm ci --omit=dev
+RUN cd backend && npm install --omit=dev
 
 # Backend broncode
 COPY backend/ ./backend/

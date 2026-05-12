@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: zvelo-agent
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
+    startCommand: node --disable-warning=ExperimentalWarning backend/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /data/zvelo.db
+      - key: ASSETS_PATH
+        value: /data/assets
+      - key: ETSY_REDIRECT_URI
+        value: https://zvelo-agent.onrender.com/auth/etsy/callback
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ETSY_CLIENT_ID
+        sync: false
+      - key: ETSY_CLIENT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+    disk:
+      name: zvelo-data
+      mountPath: /data
+      sizeGB: 1

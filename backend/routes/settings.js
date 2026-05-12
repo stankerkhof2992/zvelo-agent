@@ -40,32 +40,35 @@ function writeEnvFile(vars) {
 }
 
 // GET /api/settings — Geef instellingen terug (keys gemaskeerd)
+// Combineert .env bestand (lokaal) met process.env (Render / omgevingsvariabelen)
 router.get('/', (req, res) => {
   try {
-    const env = readEnvFile();
+    const fileEnv = readEnvFile();
+    // process.env heeft voorrang (Render-variabelen overschrijven .env)
+    const get = (key) => process.env[key] || fileEnv[key] || '';
     const maskKey = (val) => val ? (val.substring(0, 6) + '••••••••' + val.substring(val.length - 4)) : '';
 
     res.json({
       keys: {
-        ANTHROPIC_API_KEY: { configured: !!env.ANTHROPIC_API_KEY, masked: maskKey(env.ANTHROPIC_API_KEY) },
-        OPENAI_API_KEY: { configured: !!env.OPENAI_API_KEY, masked: maskKey(env.OPENAI_API_KEY) },
-        SMARTMOCKUPS_API_KEY: { configured: !!env.SMARTMOCKUPS_API_KEY, masked: maskKey(env.SMARTMOCKUPS_API_KEY) },
-        ETSY_CLIENT_ID: { configured: !!env.ETSY_CLIENT_ID, masked: maskKey(env.ETSY_CLIENT_ID) },
-        ETSY_CLIENT_SECRET: { configured: !!env.ETSY_CLIENT_SECRET, masked: maskKey(env.ETSY_CLIENT_SECRET) }
+        ANTHROPIC_API_KEY: { configured: !!get('ANTHROPIC_API_KEY'), masked: maskKey(get('ANTHROPIC_API_KEY')) },
+        OPENAI_API_KEY: { configured: !!get('OPENAI_API_KEY'), masked: maskKey(get('OPENAI_API_KEY')) },
+        SMARTMOCKUPS_API_KEY: { configured: !!get('SMARTMOCKUPS_API_KEY'), masked: maskKey(get('SMARTMOCKUPS_API_KEY')) },
+        ETSY_CLIENT_ID: { configured: !!get('ETSY_CLIENT_ID'), masked: maskKey(get('ETSY_CLIENT_ID')) },
+        ETSY_CLIENT_SECRET: { configured: !!get('ETSY_CLIENT_SECRET'), masked: maskKey(get('ETSY_CLIENT_SECRET')) }
       },
       preferences: {
-        AGENT_CRON_SCHEDULE: env.AGENT_CRON_SCHEDULE || '0 8 * * *',
-        AGENT_CONCEPTS_PER_DAY: env.AGENT_CONCEPTS_PER_DAY || '3',
-        DEFAULT_NICHE: env.DEFAULT_NICHE || 'Minimalist Wall Art Printables',
-        EMAIL_ENABLED: env.EMAIL_ENABLED || 'false',
-        EMAIL_TO: env.EMAIL_TO || '',
-        BACKEND_URL: env.BACKEND_URL || 'http://localhost:3001'
+        AGENT_CRON_SCHEDULE: get('AGENT_CRON_SCHEDULE') || '0 8 * * *',
+        AGENT_CONCEPTS_PER_DAY: get('AGENT_CONCEPTS_PER_DAY') || '3',
+        DEFAULT_NICHE: get('DEFAULT_NICHE') || 'Minimalist Wall Art Printables',
+        EMAIL_ENABLED: get('EMAIL_ENABLED') || 'false',
+        EMAIL_TO: get('EMAIL_TO') || '',
+        BACKEND_URL: get('BACKEND_URL') || 'http://localhost:3001'
       },
       simulation_mode: {
-        claude: !process.env.ANTHROPIC_API_KEY,
-        dalle: !process.env.OPENAI_API_KEY,
-        mockups: !process.env.SMARTMOCKUPS_API_KEY,
-        etsy: !process.env.ETSY_CLIENT_ID
+        claude: !get('ANTHROPIC_API_KEY'),
+        dalle: !get('OPENAI_API_KEY'),
+        mockups: !get('SMARTMOCKUPS_API_KEY'),
+        etsy: !get('ETSY_CLIENT_ID')
       }
     });
   } catch (err) {

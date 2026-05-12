@@ -1,14 +1,14 @@
 require('dotenv').config();
 const Anthropic = require('@anthropic-ai/sdk');
 
-const isSimulation = !process.env.ANTHROPIC_API_KEY;
-
-let client = null;
-if (!isSimulation) {
-  client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
-
 const MODEL = 'claude-sonnet-4-6';
+
+// Dynamisch: lees de key bij elke aanroep zodat settings-pagina wijzigingen direct werken
+function getClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  return new Anthropic({ apiKey });
+}
 
 const SIMULATION_NICHES = [
   {
@@ -77,100 +77,60 @@ Each print in this botanical wall art printable set features hand-drawn style li
 - Nursery and children's room decor
 - Housewarming or wedding gift
 
-**Why this botanical print set sells:**
-The timeless appeal of botanical artwork combined with minimalist design creates pieces that never go out of style. Buyers can print at home or at a local print shop, making it both affordable and convenient.
-
-**Included in your instant download:**
-- 4 unique botanical designs
-- Available in 5×7, 8×10, and A4 sizes
-- High-resolution 300 DPI files (JPEG + PDF)
-- Print-ready, no bleed required
-
-**How to download:**
-After purchase you'll receive an instant download link. Print at home, at Staples, FedEx, or your local print shop.
-
 ✦ Instant Download — What's included:
 → 4 botanical line art prints (JPEG + PDF)
 → 3 sizes: 5×7 | 8×10 | A4
-→ 300 DPI print-ready files
-→ Commercial use NOT included`,
+→ 300 DPI print-ready files`,
     tags: ['botanical print', 'wall art printable', 'minimalist print', 'instant download art', 'line art print', 'plant wall art', 'gallery wall set', 'home decor printable', 'botanical art', 'modern wall art', 'nature print set', 'printable wall art', 'botanical decor'],
     price: 4.49,
-    dalle_prompt: 'Minimalist botanical line art illustration set of 4 prints, monstera leaf, eucalyptus branch, fern frond, olive branch, thin elegant black lines on pure white background, high resolution, clean and modern aesthetic, print-ready design, professional botanical illustration style',
-    why_this_sells: 'Botanisch design is tijdloos en combineert met elk interieur. Set van 4 biedt meer waarde voor de koper. Instant download maakt het drempelvrij.'
+    dalle_prompt: 'Minimalist botanical line art illustration, monstera leaf, eucalyptus branch, thin elegant black lines on white background, high resolution, clean modern aesthetic, print-ready',
+    why_this_sells: 'Botanisch design is tijdloos en combineert met elk interieur. Set van 4 biedt meer waarde. Instant download maakt het drempelvrij.'
   },
   {
     title: 'Daily Planner Insert Printable Minimalist A5',
-    description: `Maximize your productivity with our beautifully designed minimalist daily planner insert. This printable planner page helps you organize your day with intention and clarity, featuring a clean layout that keeps you focused on what matters most.
-
-Our digital planner insert is designed for the modern professional who values both aesthetics and functionality. The minimalist design eliminates distractions while providing all the structure you need.
+    description: `Maximize your productivity with our beautifully designed minimalist daily planner insert. This printable planner page helps you organize your day with intention and clarity.
 
 **Layout includes:**
 - Time-blocked schedule (6am–10pm)
 - Top 3 priorities section
 - Notes and ideas space
 - Habit tracker (5 habits)
-- Water intake tracker
-- Gratitude prompt
 - Evening reflection space
-
-**Compatible with:**
-- A5 binders and planners
-- Standard 6-ring binders
-- GoodNotes and Notability (digital use)
-- Hobonichi Cousin (A5 size)
-
-The minimalist planner aesthetic means this design works year-round — no dates pre-printed so you never waste a page.
-
-**Productivity tip:** Use the top 3 priorities section first thing in the morning. Studies show that focusing on your 3 most important tasks leads to 40% higher daily completion rates.
 
 ✦ Instant Download — What's included:
 → Daily planner insert (PDF + PNG)
 → A5 size (148 × 210mm)
-→ 300 DPI print-ready
-→ Works with GoodNotes & Notability`,
+→ 300 DPI print-ready`,
     tags: ['daily planner printable', 'planner inserts A5', 'minimalist planner', 'printable planner page', 'productivity planner', 'digital planner insert', 'daily schedule printable', 'planner pages', 'minimalist daily planner', 'time block planner', 'habit tracker printable', 'undated planner', 'planner refill'],
     price: 2.99,
-    dalle_prompt: 'Minimalist daily planner page design, clean white background, thin gray lines, modern sans-serif typography, subtle grid layout, A5 format, professional productivity tool design, flat lay product photography style, high resolution print ready',
-    why_this_sells: 'Planner inserts zijn een evergreen niche met terugkerende kopers. Minimalist design spreekt brede doelgroep aan. Laag instappunt trekt nieuwe kopers.'
+    dalle_prompt: 'Minimalist daily planner page design, clean white background, thin gray lines, modern sans-serif typography, A5 format, professional productivity tool design, high resolution print ready',
+    why_this_sells: 'Planner inserts zijn een evergreen niche met terugkerende kopers. Minimalist design spreekt brede doelgroep aan.'
   },
   {
     title: 'Motivational Quote Print Boho Bedroom Wall Art',
-    description: `Fill your space with daily inspiration with this beautiful boho motivational quote print. Designed with carefully chosen typography and subtle bohemian elements, this printable wall art adds both beauty and positive energy to any room.
-
-The perfect affirmation for your bedroom, home office, or meditation space. Our motivational quote prints are designed to inspire and uplift, featuring words that resonate with women, entrepreneurs, and anyone on a journey of personal growth.
+    description: `Fill your space with daily inspiration with this beautiful boho motivational quote print. Designed with carefully chosen typography and subtle bohemian elements.
 
 Featured quote: "She believed she could, so she did"
-
-The design combines modern boho aesthetics with clean typography — warm earth tones, subtle botanical accents, and layered text create a piece that feels both artistic and intentional.
 
 **Perfect as a gift for:**
 - Birthdays and celebrations
 - Graduation gifts
-- Baby shower decor
 - Dorm room decoration
-- Self-care and wellness spaces
-
-**Design details:**
-- Warm beige and terracotta color palette
-- Mixed serif and sans-serif typography
-- Subtle floral border elements
-- Timeless and gender-neutral enough for any space
 
 ✦ Instant Download — What's included:
 → 1 motivational quote print (PDF + JPEG)
 → Sizes: 5×7 | 8×10 | 11×14 | A4 | A3
-→ 300 DPI print-ready files
-→ Instant download after purchase`,
+→ 300 DPI print-ready files`,
     tags: ['motivational quote print', 'boho wall art', 'inspirational print', 'bedroom wall art', 'quote printable', 'she believed she could', 'boho home decor', 'printable quote art', 'womens quote print', 'positive affirmation print', 'dorm room decor', 'gift for her', 'boho bedroom decor'],
     price: 3.49,
-    dalle_prompt: 'Boho motivational quote wall art print, "She believed she could so she did" typography, warm beige and terracotta earth tones, subtle botanical floral border elements, mixed serif and script fonts, bohemian aesthetic, white background, professional print-ready design, high resolution 300 DPI',
-    why_this_sells: 'Quote prints zijn consistent bestsellers op Etsy. Boho stijl is trending. Breed cadeaumarkt (verjaardag, afstuderen) geeft extra verkoopvolume.'
+    dalle_prompt: 'Boho motivational quote wall art print, warm beige and terracotta earth tones, subtle botanical floral border, mixed serif and script fonts, bohemian aesthetic, white background, professional print-ready design',
+    why_this_sells: 'Quote prints zijn consistent bestsellers op Etsy. Boho stijl is trending. Breed cadeaumarkt geeft extra verkoopvolume.'
   }
 ];
 
 async function analyzeNiches() {
-  if (isSimulation) {
+  const client = getClient();
+  if (!client) {
     console.log('[Claude] Simulatiemodus: niche analyse wordt gesimuleerd');
     await new Promise(r => setTimeout(r, 800));
     return SIMULATION_NICHES;
@@ -189,8 +149,6 @@ Niches om te analyseren:
 - Resume & CV Templates
 - Recipe Cards Printables
 - Logo Design Templates
-
-Geef per niche een objectieve analyse gebaseerd op Etsy markttrends.
 
 Geef je antwoord ALLEEN als een geldig JSON array, geen extra tekst:
 [
@@ -226,7 +184,8 @@ Sorteer op score (hoog naar laag). Zet recommended op true voor de top 2.`;
 }
 
 async function generateConcept(niche) {
-  if (isSimulation) {
+  const client = getClient();
+  if (!client) {
     console.log(`[Claude] Simulatiemodus: concept genereren voor niche "${niche}"`);
     await new Promise(r => setTimeout(r, 600));
     const concept = SIMULATION_CONCEPTS[Math.floor(Math.random() * SIMULATION_CONCEPTS.length)];
@@ -236,21 +195,21 @@ async function generateConcept(niche) {
   const prompt = `Je bent een Etsy SEO expert en digitale product creator. Genereer een volledig Etsy listing concept voor de niche: "${niche}".
 
 Vereisten:
-- Titel: max 60 tekens, primair keyword staat VOORAAN, pakkend voor kopers
-- Beschrijving: 300-500 woorden, eerste 160 tekens zijn cruciaal (preview), verwerk 5-8 longtail keywords NATUURLIJK in de tekst, eindig met "✦ Instant Download" sectie
-- Tags: PRECIES 13 unieke tags, mix van breed en specifiek, geen herhaling van woorden die al in de titel staan
-- Prijs: competitief voor een nieuwe shop (analyseer wat goed verkoopt)
+- Titel: max 60 tekens, primair keyword staat VOORAAN
+- Beschrijving: 300-500 woorden, eerste 160 tekens zijn cruciaal, eindig met "✦ Instant Download" sectie
+- Tags: PRECIES 13 unieke tags
+- Prijs: competitief voor een nieuwe shop
 - DALL-E prompt: gedetailleerde prompt voor productafbeelding
 - Why this sells: waarom dit product goed verkoopt
 
 Geef je antwoord ALLEEN als geldig JSON, geen extra tekst:
 {
   "title": "max 60 tekens SEO titel",
-  "description": "volledige beschrijving met instant download sectie aan het einde",
+  "description": "volledige beschrijving",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12", "tag13"],
   "price": 4.99,
-  "dalle_prompt": "Minimalist [product] design, [stijl], white background, high resolution, print-ready, professional product photography style, suitable for Etsy digital download listing, clean and modern aesthetic",
-  "why_this_sells": "uitleg waarom dit product verkoopt"
+  "dalle_prompt": "gedetailleerde afbeelding prompt",
+  "why_this_sells": "uitleg"
 }`;
 
   const response = await client.messages.create({
@@ -264,9 +223,7 @@ Geef je antwoord ALLEEN als geldig JSON, geen extra tekst:
   if (!jsonMatch) throw new Error('Claude gaf geen geldig JSON terug voor concept');
   const concept = JSON.parse(jsonMatch[0]);
 
-  if (concept.title.length > 60) {
-    concept.title = concept.title.substring(0, 60);
-  }
+  if (concept.title.length > 60) concept.title = concept.title.substring(0, 60);
   if (!Array.isArray(concept.tags) || concept.tags.length !== 13) {
     throw new Error(`Verwacht 13 tags, kreeg ${concept.tags?.length}`);
   }
@@ -275,7 +232,8 @@ Geef je antwoord ALLEEN als geldig JSON, geen extra tekst:
 }
 
 async function generateWeeklyRecommendations(salesData) {
-  if (isSimulation) {
+  const client = getClient();
+  if (!client) {
     return {
       top_niche: 'Minimalist Wall Art Printables',
       scale_up: ['Botanische prints', 'Minimalistische posters'],
@@ -311,4 +269,10 @@ Geef ALLEEN geldig JSON terug:
   return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 }
 
-module.exports = { analyzeNiches, generateConcept, generateWeeklyRecommendations, isSimulation };
+// isSimulation als getter zodat het altijd de actuele waarde van process.env weerspiegelt
+module.exports = {
+  analyzeNiches,
+  generateConcept,
+  generateWeeklyRecommendations,
+  get isSimulation() { return !process.env.ANTHROPIC_API_KEY; }
+};

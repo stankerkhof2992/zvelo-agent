@@ -4,29 +4,34 @@ const crypto = require('crypto');
 const axios = require('axios');
 const { db, generateId, now, log } = require('../database');
 
-// Tijdelijke opslag voor PKCE states (in-memory voor lokale app)
 const pendingStates = new Map();
 
 function base64urlEncode(buffer) {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
+// Leidt de frontend-URL af uit het request zodat links werken op zowel localhost als Render
+function getFrontendBase(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.get('host');
+  return `${proto}://${host}`;
+}
+
 // GET /auth/etsy?shop_name=Zvelo
 router.get('/etsy', (req, res) => {
   if (!process.env.ETSY_CLIENT_ID) {
+    const base = getFrontendBase(req);
     return res.status(400).send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>⚠️ ETSY_CLIENT_ID niet ingesteld</h2>
-        <p>Voeg je Etsy API credentials toe aan het .env bestand en herstart de server.</p>
-        <p>Zie de README voor instructies.</p>
-        <a href="http://localhost:5173/settings">← Terug naar instellingen</a>
+        <p>Voeg <strong>ETSY_CLIENT_ID</strong> toe als Environment Variable in het Render Dashboard en herstart de service.</p>
+        <p style="margin-top:24px;"><a href="${base}/settings" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Naar instellingen</a></p>
       </body></html>
     `);
   }
 
   const shopName = req.query.shop_name || 'Mijn Shop';
 
-  // PKCE: code verifier en challenge genereren
   const codeVerifier = base64urlEncode(crypto.randomBytes(64));
   const codeChallenge = base64urlEncode(
     crypto.createHash('sha256').update(codeVerifier).digest()
@@ -35,15 +40,16 @@ router.get('/etsy', (req, res) => {
 
   pendingStates.set(state, { codeVerifier, shopName, createdAt: Date.now() });
 
-  // Verlopen states opruimen (ouder dan 10 minuten)
   for (const [key, val] of pendingStates.entries()) {
     if (Date.now() - val.createdAt > 600000) pendingStates.delete(key);
   }
 
+  const redirectUri = process.env.ETSY_REDIRECT_URI || `${getFrontendBase(req).replace(/:\d+$/, ':3001')}/auth/etsy/callback`;
+
   const scopes = 'listings_r listings_w listings_d shops_r';
   const params = new URLSearchParams({
     response_type: 'code',
-    redirect_uri: process.env.ETSY_REDIRECT_URI || 'http://localhost:3001/auth/etsy/callback',
+    redirect_uri: redirectUri,
     scope: scopes,
     client_id: process.env.ETSY_CLIENT_ID,
     state,
@@ -51,20 +57,20 @@ router.get('/etsy', (req, res) => {
     code_challenge_method: 'S256'
   });
 
-  const authUrl = `https://www.etsy.com/oauth/connect?${params.toString()}`;
-  res.redirect(authUrl);
+  res.redirect(`https://www.etsy.com/oauth/connect?${params.toString()}`);
 });
 
 // GET /auth/etsy/callback
 router.get('/etsy/callback', async (req, res) => {
   const { code, state, error } = req.query;
+  const base = getFrontendBase(req);
 
   if (error) {
     return res.send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>❌ Etsy autorisatie geweigerd</h2>
         <p>Fout: ${error}</p>
-        <a href="http://localhost:5173/shops">← Terug naar shops</a>
+        <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
       </body></html>
     `);
   }
@@ -75,21 +81,22 @@ router.get('/etsy/callback', async (req, res) => {
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>❌ Ongeldige of verlopen state</h2>
         <p>Probeer opnieuw via het dashboard.</p>
-        <a href="http://localhost:5173/shops">← Terug naar shops</a>
+        <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
       </body></html>
     `);
   }
 
   pendingStates.delete(state);
 
+  const redirectUri = process.env.ETSY_REDIRECT_URI || `${base.replace(/:\d+$/, ':3001')}/auth/etsy/callback`;
+
   try {
-    // Code inwisselen voor tokens
     const tokenResponse = await axios.post(
       'https://api.etsy.com/v3/public/oauth/token',
       {
         grant_type: 'authorization_code',
         client_id: process.env.ETSY_CLIENT_ID,
-        redirect_uri: process.env.ETSY_REDIRECT_URI || 'http://localhost:3001/auth/etsy/callback',
+        redirect_uri: redirectUri,
         code,
         code_verifier: pending.codeVerifier
       },
@@ -99,7 +106,6 @@ router.get('/etsy/callback', async (req, res) => {
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
     const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // Shop info ophalen van Etsy
     const shopResponse = await axios.get('https://openapi.etsy.com/v3/application/users/me/shops', {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -111,7 +117,6 @@ router.get('/etsy/callback', async (req, res) => {
     const etsyShopId = String(etsyShop.shop_id);
     const etsyShopName = etsyShop.shop_name || pending.shopName;
 
-    // Shop opslaan of bijwerken
     const existingShop = db.prepare('SELECT * FROM shops WHERE etsy_shop_id = ?').get(etsyShopId);
 
     if (existingShop) {
@@ -138,7 +143,7 @@ router.get('/etsy/callback', async (req, res) => {
           <h2 style="color:#18181b;">Shop gekoppeld!</h2>
           <p style="color:#666;"><strong>${etsyShopName}</strong> is succesvol gekoppeld aan Zvelo.</p>
           <p style="margin-top:24px;">
-            <a href="http://localhost:5173/shops" style="background:#f97316;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:600;">
+            <a href="${base}/shops" style="background:#f97316;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:600;">
               Naar dashboard →
             </a>
           </p>
@@ -151,7 +156,7 @@ router.get('/etsy/callback', async (req, res) => {
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>❌ Koppeling mislukt</h2>
         <p>${err.response?.data?.error_description || err.message}</p>
-        <a href="http://localhost:5173/shops">← Terug naar shops</a>
+        <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
       </body></html>
     `);
   }

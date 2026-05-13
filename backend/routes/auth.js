@@ -2,21 +2,59 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
-const { query, queryOne, run, generateId, now, log } = require('../database');
+const { queryOne, run, generateId, now, log } = require('../database');
 
 function base64urlEncode(buffer) {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-// Leidt de frontend-URL af uit het request zodat links werken op zowel localhost als Render
 function getFrontendBase(req) {
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.get('host');
   return `${proto}://${host}`;
 }
 
+// De signing-secret: geprefereerd SESSION_SECRET, anders ETSY_CLIENT_SECRET of CLIENT_ID als fallback
+function getStateSecret() {
+  return process.env.SESSION_SECRET ||
+    process.env.ETSY_CLIENT_SECRET ||
+    process.env.ETSY_CLIENT_ID ||
+    'zvelo-dev-secret';
+}
+
+// Codeer alle OAuth-data in de state zelf (HMAC-gesigneerd) — geen database of geheugen nodig
+function createSignedState(codeVerifier, shopName) {
+  const secret = getStateSecret();
+  const exp = Date.now() + 600000; // geldig 10 minuten
+  const nonce = crypto.randomBytes(8).toString('hex');
+  const payload = Buffer.from(JSON.stringify({ codeVerifier, shopName, nonce, exp })).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+// Verifieert de handtekening en geeft de data terug, of null bij ongeldig/verlopen
+function verifySignedState(state) {
+  try {
+    const secret = getStateSecret();
+    const dotIdx = state.lastIndexOf('.');
+    if (dotIdx === -1) return null;
+    const payload = state.slice(0, dotIdx);
+    const sig = state.slice(dotIdx + 1);
+    const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+    const sigBuf = Buffer.from(sig, 'ascii');
+    const expBuf = Buffer.from(expectedSig, 'ascii');
+    if (sigBuf.length !== expBuf.length) return null;
+    if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (Date.now() > data.exp) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 // GET /auth/etsy?shop_name=Zvelo
-router.get('/etsy', async (req, res) => {
+router.get('/etsy', (req, res) => {
   if (!process.env.ETSY_CLIENT_ID) {
     const base = getFrontendBase(req);
     return res.status(400).send(`
@@ -34,14 +72,7 @@ router.get('/etsy', async (req, res) => {
   const codeChallenge = base64urlEncode(
     crypto.createHash('sha256').update(codeVerifier).digest()
   );
-  const state = base64urlEncode(crypto.randomBytes(16));
-
-  await run(
-    'INSERT INTO oauth_states (state, code_verifier, shop_name, created_at) VALUES ($1, $2, $3, $4)',
-    [state, codeVerifier, shopName, Date.now()]
-  );
-  // Verlopen states opruimen (ouder dan 10 minuten)
-  await run('DELETE FROM oauth_states WHERE created_at < $1', [Date.now() - 600000]);
+  const state = createSignedState(codeVerifier, shopName);
 
   const redirectUri = process.env.ETSY_REDIRECT_URI || 'https://zvelo-agent.onrender.com/auth/etsy/callback';
 
@@ -56,6 +87,7 @@ router.get('/etsy', async (req, res) => {
     code_challenge_method: 'S256'
   });
 
+  console.log(`[OAuth] Start voor shop="${shopName}", redirectUri=${redirectUri}`);
   res.redirect(`https://www.etsy.com/oauth/connect?${params.toString()}`);
 });
 
@@ -63,6 +95,8 @@ router.get('/etsy', async (req, res) => {
 router.get('/etsy/callback', async (req, res) => {
   const { code, state, error } = req.query;
   const base = getFrontendBase(req);
+
+  console.log(`[OAuth] Callback: code=${code ? 'ja' : 'nee'}, state=${state ? 'ja' : 'nee'}, error=${error || 'geen'}`);
 
   if (error) {
     return res.send(`
@@ -74,19 +108,27 @@ router.get('/etsy/callback', async (req, res) => {
     `);
   }
 
-  const pendingRow = await queryOne('SELECT * FROM oauth_states WHERE state = $1', [state]);
-  if (!pendingRow) {
+  if (!state) {
     return res.status(400).send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
-        <h2>❌ Ongeldige of verlopen state</h2>
-        <p>Probeer opnieuw via het dashboard.</p>
+        <h2>❌ State parameter ontbreekt</h2>
+        <p>Etsy heeft geen state teruggestuurd. Probeer de koppeling opnieuw.</p>
         <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
       </body></html>
     `);
   }
 
-  await run('DELETE FROM oauth_states WHERE state = $1', [state]);
-  const pending = { codeVerifier: pendingRow.code_verifier, shopName: pendingRow.shop_name };
+  const pending = verifySignedState(state);
+  if (!pending) {
+    console.warn('[OAuth] State verificatie mislukt — ongeldig of verlopen');
+    return res.status(400).send(`
+      <html><body style="font-family:Arial;padding:40px;text-align:center;">
+        <h2>❌ Ongeldige of verlopen state</h2>
+        <p>De koppeling is verlopen (max. 10 minuten) of de state is ongeldig.<br>Probeer opnieuw via het dashboard.</p>
+        <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
+      </body></html>
+    `);
+  }
 
   const redirectUri = process.env.ETSY_REDIRECT_URI || 'https://zvelo-agent.onrender.com/auth/etsy/callback';
 
@@ -136,6 +178,7 @@ router.get('/etsy/callback', async (req, res) => {
     }
 
     log(`Etsy OAuth voltooid voor shop: ${etsyShopName}`, 'success');
+    console.log(`[OAuth] Succesvol: ${etsyShopName} (ID: ${etsyShopId})`);
 
     res.send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;background:#f9f9f9;">
@@ -152,11 +195,13 @@ router.get('/etsy/callback', async (req, res) => {
       </body></html>
     `);
   } catch (err) {
-    log(`Etsy OAuth fout: ${err.message}`, 'error');
+    const detail = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    console.error(`[OAuth] Token exchange mislukt:`, err.response?.data || err.message);
+    log(`Etsy OAuth fout: ${detail}`, 'error');
     res.status(500).send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>❌ Koppeling mislukt</h2>
-        <p>${err.response?.data?.error_description || err.message}</p>
+        <p>${detail}</p>
         <p style="margin-top:24px;"><a href="${base}/shops" style="background:#f97316;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;">← Terug naar shops</a></p>
       </body></html>
     `);

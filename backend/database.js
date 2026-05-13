@@ -78,14 +78,6 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS oauth_states (
-      state TEXT PRIMARY KEY,
-      code_verifier TEXT NOT NULL,
-      shop_name TEXT,
-      created_at BIGINT NOT NULL
-    )
-  `);
 }
 
 async function query(sql, params = []) {

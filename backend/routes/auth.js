@@ -2,9 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
-const { queryOne, run, generateId, now, log } = require('../database');
-
-const pendingStates = new Map();
+const { query, queryOne, run, generateId, now, log } = require('../database');
 
 function base64urlEncode(buffer) {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -18,7 +16,7 @@ function getFrontendBase(req) {
 }
 
 // GET /auth/etsy?shop_name=Zvelo
-router.get('/etsy', (req, res) => {
+router.get('/etsy', async (req, res) => {
   if (!process.env.ETSY_CLIENT_ID) {
     const base = getFrontendBase(req);
     return res.status(400).send(`
@@ -38,13 +36,14 @@ router.get('/etsy', (req, res) => {
   );
   const state = base64urlEncode(crypto.randomBytes(16));
 
-  pendingStates.set(state, { codeVerifier, shopName, createdAt: Date.now() });
+  await run(
+    'INSERT INTO oauth_states (state, code_verifier, shop_name, created_at) VALUES ($1, $2, $3, $4)',
+    [state, codeVerifier, shopName, Date.now()]
+  );
+  // Verlopen states opruimen (ouder dan 10 minuten)
+  await run('DELETE FROM oauth_states WHERE created_at < $1', [Date.now() - 600000]);
 
-  for (const [key, val] of pendingStates.entries()) {
-    if (Date.now() - val.createdAt > 600000) pendingStates.delete(key);
-  }
-
-  const redirectUri = process.env.ETSY_REDIRECT_URI || `${getFrontendBase(req).replace(/:\d+$/, ':3001')}/auth/etsy/callback`;
+  const redirectUri = process.env.ETSY_REDIRECT_URI || 'https://zvelo-agent.onrender.com/auth/etsy/callback';
 
   const scopes = 'listings_r listings_w listings_d shops_r';
   const params = new URLSearchParams({
@@ -75,8 +74,8 @@ router.get('/etsy/callback', async (req, res) => {
     `);
   }
 
-  const pending = pendingStates.get(state);
-  if (!pending) {
+  const pendingRow = await queryOne('SELECT * FROM oauth_states WHERE state = $1', [state]);
+  if (!pendingRow) {
     return res.status(400).send(`
       <html><body style="font-family:Arial;padding:40px;text-align:center;">
         <h2>❌ Ongeldige of verlopen state</h2>
@@ -86,9 +85,10 @@ router.get('/etsy/callback', async (req, res) => {
     `);
   }
 
-  pendingStates.delete(state);
+  await run('DELETE FROM oauth_states WHERE state = $1', [state]);
+  const pending = { codeVerifier: pendingRow.code_verifier, shopName: pendingRow.shop_name };
 
-  const redirectUri = process.env.ETSY_REDIRECT_URI || `${base.replace(/:\d+$/, ':3001')}/auth/etsy/callback`;
+  const redirectUri = process.env.ETSY_REDIRECT_URI || 'https://zvelo-agent.onrender.com/auth/etsy/callback';
 
   try {
     const tokenResponse = await axios.post(

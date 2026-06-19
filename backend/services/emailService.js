@@ -31,7 +31,7 @@ async function sendNotification(subject, body) {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #f97316;">🚀 Zvelo Etsy Agent</h2>
           <p>${body}</p>
-          <p><a href="http://localhost:5173" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Dashboard openen</a></p>
+          <p><a href="${process.env.BACKEND_URL || 'http://localhost:5173'}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Dashboard openen</a></p>
           <hr style="border: 1px solid #eee; margin: 20px 0;"/>
           <p style="color: #888; font-size: 12px;">Zvelo Etsy AI Agent — Lokale automatisering</p>
         </div>

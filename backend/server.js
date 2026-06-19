@@ -94,7 +94,7 @@ initDb()
 
       console.log(`\n🚀 Zvelo Agent backend: http://localhost:${PORT}`);
       if (!isProduction) console.log(`📊 Dashboard:          http://localhost:5173`);
-      if (isProduction) console.log(`📊 Dashboard:          http://localhost:${PORT}`);
+      if (isProduction) console.log(`📊 Dashboard:          ${process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}`);
       if (sim.length > 0) {
         console.log(`⚡ Simulatiemodus actief voor: ${sim.join(', ')}`);
       } else {

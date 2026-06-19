@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
-const { db } = require('../database');
+const { run } = require('../database');
 
 const ETSY_API = 'https://openapi.etsy.com/v3';
 const isSimulation = !process.env.ETSY_CLIENT_ID;
@@ -29,9 +29,10 @@ async function getValidToken(shop) {
   const { access_token, refresh_token, expires_in } = response.data;
   const newExpiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
-  db.prepare(`
-    UPDATE shops SET etsy_access_token=?, etsy_refresh_token=?, etsy_token_expires_at=? WHERE id=?
-  `).run(access_token, refresh_token, newExpiry, shop.id);
+  await run(
+    'UPDATE shops SET etsy_access_token=$1, etsy_refresh_token=$2, etsy_token_expires_at=$3 WHERE id=$4',
+    [access_token, refresh_token, newExpiry, shop.id]
+  );
 
   return access_token;
 }
